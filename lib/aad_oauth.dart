@@ -32,6 +32,9 @@ class AadOAuth {
     if (!_initialized) {
       // load token from cache
       _token = await _authStorage.loadTokenToCache();
+      if (_token != null && Token.isExpired(_token)) {
+        await _performRefreshAuthFlow();
+      }
       _initialized = true;
     }
   }
