@@ -17,15 +17,17 @@ class AadOAuth {
   RequestCode _requestCode;
   RequestToken _requestToken;
   bool _initialized;
+  bool _autoRefresh;
 
   /// Instantiating AadOAuth authentication.
   /// [config] Parameters according to official Microsoft Documentation.
-  AadOAuth(Config config) {
+  AadOAuth(Config config, {autoRefresh = true}) {
     _config = config;
     _authStorage = AuthStorage(tokenIdentifier: config.tokenIdentifier);
     _requestCode = RequestCode(_config);
     _requestToken = RequestToken(_config);
     _initialized = false;
+    _autoRefresh = autoRefresh;
   }
 
   Future<void> init() async {
@@ -55,6 +57,15 @@ class AadOAuth {
     }
   }
 
+  /// Perform Azure AD refresh.
+  Future<void> refresh() async {
+    if (Token.tokenIsValid(_token) &&
+        _token.expireTimeStamp
+            .isAfter(DateTime.now().add(Duration(minutes: 30)).toUtc())) {
+      await _performRefreshAuthFlow();
+    }
+  }
+
   /// Retrieve OAuth access token.
   Future<String> getAccessToken() async {
     if (!Token.tokenIsValid(_token)) await _performAuthorization();
@@ -71,6 +82,7 @@ class AadOAuth {
 
   /// Get status of user login by checking token.
   bool tokenIsValid() {
+    if (_autoRefresh) refresh();
     return Token.tokenIsValid(_token);
   }
 
