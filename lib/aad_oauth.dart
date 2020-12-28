@@ -17,26 +17,22 @@ class AadOAuth {
   RequestCode _requestCode;
   RequestToken _requestToken;
   bool _initialized;
-  bool _autoRefresh;
+  Token get token => _token;
 
   /// Instantiating AadOAuth authentication.
   /// [config] Parameters according to official Microsoft Documentation.
-  AadOAuth(Config config, {autoRefresh = true}) {
+  AadOAuth(Config config) {
     _config = config;
     _authStorage = AuthStorage(tokenIdentifier: config.tokenIdentifier);
     _requestCode = RequestCode(_config);
     _requestToken = RequestToken(_config);
     _initialized = false;
-    _autoRefresh = autoRefresh;
   }
 
   Future<void> init() async {
     if (!_initialized) {
       // load token from cache
       _token = await _authStorage.loadTokenToCache();
-      if (_token != null && Token.isExpired(_token)) {
-        await _performRefreshAuthFlow();
-      }
       _initialized = true;
     }
   }
@@ -59,11 +55,9 @@ class AadOAuth {
 
   /// Perform Azure AD refresh.
   Future<void> refresh() async {
-    if (Token.tokenIsValid(_token) &&
-        _token.expireTimeStamp
-            .isAfter(DateTime.now().add(Duration(minutes: 30)).toUtc())) {
+    try {
       await _performRefreshAuthFlow();
-    }
+    } catch (e) {}
   }
 
   /// Retrieve OAuth access token.
@@ -82,7 +76,6 @@ class AadOAuth {
 
   /// Get status of user login by checking token.
   bool tokenIsValid() {
-    if (_autoRefresh) refresh();
     return Token.tokenIsValid(_token);
   }
 
@@ -98,13 +91,11 @@ class AadOAuth {
     await init();
     //still have refreh token / try to get access token with refresh token
     if (_token != null) {
-      await _performRefreshAuthFlow();
-    } else {
       try {
-        await _performFullAuthFlow();
-      } catch (e) {
-        rethrow;
-      }
+        await _performRefreshAuthFlow();
+      } catch (e) {}
+    } else {
+      await _performFullAuthFlow();
     }
 
     //save token to cache
@@ -126,11 +117,7 @@ class AadOAuth {
 
   Future<void> _performRefreshAuthFlow() async {
     if (_token.refreshToken != null) {
-      try {
-        _token = await _requestToken.requestRefreshToken(_token.refreshToken);
-      } catch (e) {
-        //do nothing (because later we try to do a full oauth code flow request)
-      }
+      _token = await _requestToken.requestRefreshToken(_token.refreshToken);
     }
   }
 
